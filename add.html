@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Add Product</title>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+  <h2>Add Outfit / Product</h2>
+
+  <h4>Item 1 (required)</h4>
+  <input type="text" id="name" placeholder="Item 1 Name"><br>
+  <input type="number" id="price" placeholder="Price"><br>
+  <select id="material">
+    <option value="cotton">Cotton</option>
+    <option value="polyester">Polyester</option>
+    <option value="recycled">Recycled</option>
+  </select><br>
+  <select id="category">
+    <option value="shirt">Shirt</option>
+    <option value="pant">Pant</option>
+    <option value="jacket">Jacket</option>
+    <option value="dress">Dress</option>
+  </select><br>
+  <input type="file" id="image" accept="image/*"><br><br>
+
+  <h4>Item 2 (optional)</h4>
+  <input type="text" id="name2" placeholder="Item 2 Name (e.g., Pant)"><br>
+  <input type="number" id="price2" placeholder="Price"><br>
+  <select id="material2">
+    <option value="cotton">Cotton</option>
+    <option value="polyester">Polyester</option>
+    <option value="recycled">Recycled</option>
+  </select><br>
+  <select id="category2">
+    <option value="shirt">Shirt</option>
+    <option value="pant">Pant</option>
+    <option value="jacket">Jacket</option>
+    <option value="dress">Dress</option>
+  </select><br>
+  <input type="file" id="image2" accept="image/*"><br><br>
+
+  <button onclick="addProduct()">Add Outfit</button>
+
+  <div id="livePreview" style="margin-top: 20px; text-align: left;">
+    <h3>Live outfit summary</h3>
+    <p id="liveStats">Fill fields to preview eco/carbon and image background.</p>
+  </div>
+</div>
+
+<script>
+function getEcoScore(material) {
+  if(material === "cotton") return 8;
+  if(material === "polyester") return 4;
+  if(material === "recycled") return 9;
+  return 5;
+}
+
+function getCarbon(material, price) {
+  let base = 0;
+
+  if(material === "cotton") base = 2;
+  else if(material === "polyester") base = 5;
+  else if(material === "recycled") base = 1;
+
+  let extra = price / 100;
+
+  return (base + extra).toFixed(2);
+}
+
+function readImage(file) {
+  return new Promise((resolve) => {
+    if(!file) return resolve(null);
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+function livePreview() {
+  const name = document.getElementById("name").value;
+  const price = parseFloat(document.getElementById("price").value || "0");
+  const material = document.getElementById("material").value;
+  const category = document.getElementById("category").value;
+  const name2 = document.getElementById("name2").value;
+  const price2 = parseFloat(document.getElementById("price2").value || "0");
+  const material2 = document.getElementById("material2").value;
+  const category2 = document.getElementById("category2").value;
+
+  let text = `<strong>${name || 'No item'} ( ${category || 'type'} )</strong>: Eco ${getEcoScore(material)}, C-${getCarbon(material, price)}<br>`;
+  if(name2 && price2) {
+    text += `<strong>${name2} (${category2 || 'type'})</strong>: Eco ${getEcoScore(material2)}, C-${getCarbon(material2, price2)}<br>`;
+    const sumEco = ((getEcoScore(material) + getEcoScore(material2)) / 2).toFixed(1);
+    const sumCarbon = (parseFloat(getCarbon(material, price)) + parseFloat(getCarbon(material2, price2))).toFixed(2);
+    text += `<em>Outfit Average Eco ${sumEco}, Total Carbon ${sumCarbon}</em>`;
+  }
+
+  if(!name) text = 'Start by typing Item 1 name and price.';
+  document.getElementById("liveStats").innerHTML = text;
+}
+
+["name","price","material","category","name2","price2","material2","category2"].forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', livePreview);
+});
+
+function addProduct() {
+  let name = document.getElementById("name").value;
+  let price = parseFloat(document.getElementById("price").value || "0");
+  let material = document.getElementById("material").value;
+  let category = document.getElementById("category").value;
+  let imageFile = document.getElementById("image").files[0];
+
+  if(!name || !price || !material) {
+    alert("Please enter Item 1 name, price, and material.");
+    return;
+  }
+
+  let name2 = document.getElementById("name2").value;
+  let price2 = parseFloat(document.getElementById("price2").value || "0");
+  let material2 = document.getElementById("material2").value;
+  let category2 = document.getElementById("category2").value;
+  let imageFile2 = document.getElementById("image2").files[0];
+
+  readImage(imageFile).then((imageData1) => {
+    const products = JSON.parse(localStorage.getItem("products")) || [];
+
+    const eco1 = getEcoScore(material);
+    const carbon1 = getCarbon(material, price);
+    const id1 = Date.now().toString() + Math.random().toString(36).substr(2,6);
+    products.push({ id: id1, name, price, material, category, eco: eco1, carbon: carbon1, image: imageData1, outfit: !!name2 });
+
+    if(name2 && !isNaN(price2) && price2 > 0) {
+      const eco2 = getEcoScore(material2);
+      const carbon2 = getCarbon(material2, price2);
+      const id2 = (Date.now()+1).toString() + Math.random().toString(36).substr(2,6);
+      products.push({ id: id2, name: name2, price: price2, material: material2, category: category2, eco: eco2, carbon: carbon2, image: null, outfit: true });
+
+      readImage(imageFile2).then((imageData2) => {
+        products[products.length-1].image = imageData2;
+        localStorage.setItem("products", JSON.stringify(products));
+        alert("Outfit Added! (2 items)");
+        window.location.href = "home.html";
+      });
+    } else {
+      localStorage.setItem("products", JSON.stringify(products));
+      alert("Product Added!");
+      window.location.href = "home.html";
+    }
+  });
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EcoWear AI</title>
+  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+</head>
+<body>
+
+<div class="navbar">
+  <h2>🌱 EcoWear AI</h2>
+
+  <input type="text" id="search" placeholder="Search..." onkeyup="searchProduct()">
+
+  <div>
+    <button onclick="toggleDarkMode()">🌙</button>
+    <a href="add.html"><button>➕ Add</button></a>
+  </div>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div style="margin: 10px 20px; text-align:center;">
+  <button onclick="showOutfitFootprint()">👗 Compute Outfit Footprint</button>
+  <button onclick="showEcoChampion()" style="margin-left: 10px; background: linear-gradient(135deg, #ffb75e, #ed8f03);">🏆 Eco Champion</button>
+</div>
+
+<div class="stats" id="outfitSummary"></div>
+<div class="stats" id="ecoChampion"></div>
+
+<div id="productList"></div>
+
+<script>
+let products = JSON.parse(localStorage.getItem("products")) || [];
+
+// Backfill ID for existing items that were added before these updates
+let needsSave = false;
+products = products.map(item => {
+  if (!item.id) {
+    item.id = Date.now().toString() + Math.random().toString(36).substr(2,6);
+    needsSave = true;
+  }
+  return item;
+});
+if (needsSave) localStorage.setItem("products", JSON.stringify(products));
+
+// Eco Score
+function getEcoScore(material) {
+  if(material === "cotton") return 8;
+  if(material === "polyester") return 4;
+  if(material === "recycled") return 9;
+  return 5;
+}
+
+// Carbon
+function getCarbon(material, price) {
+  let base = 0;
+
+  if(material === "cotton") base = 2;
+  else if(material === "polyester") base = 5;
+  else if(material === "recycled") base = 1;
+
+  let extra = price / 100;
+
+  return (base + extra).toFixed(2);
+}
+
+// Recommendation
+function getRecommendation(carbon) {
+  if (carbon > 6) return "⚠️ High carbon footprint!";
+  if (carbon > 3) return "👍 Moderate impact";
+  return "🌱 Eco-friendly";
+}
+
+// Display
+let selectedForOutfit = new Set();
+
+function updateSelection(productId, checked) {
+  if (checked) selectedForOutfit.add(productId);
+  else selectedForOutfit.delete(productId);
+}
+
+function displayProducts(data = products) {
+  let container = document.getElementById("productList");
+  container.innerHTML = "";
+
+  data.forEach((p, index) => {
+    const imgSection = p.image ? `<img src="${p.image}" alt="${p.name}" style="max-width:100%; max-height:140px; border-radius:8px; margin-bottom:8px;">` : "";
+    const category = p.category ? p.category : "Unknown";
+    container.innerHTML += `
+      <div class="card">
+        <label><input type="checkbox" ${selectedForOutfit.has(String(p.id)) ? "checked" : ""} onchange="updateSelection('${p.id}', this.checked)"> Select for outfit</label>
+        <h3>${p.name}</h3>
+        ${imgSection}
+        <p>📂 Category: ${category}</p>
+        <p>💰 ₹${p.price}</p>
+        <p>🌱 Eco Score: ${p.eco}</p>
+        <p>🌍 Carbon: ${p.carbon} kg CO₂</p>
+        <p>${getRecommendation(p.carbon)}</p>
+
+        <button class="fav" onclick="toggleFavorite('${p.id}')">
+          ${p.fav ? "❤️" : "🤍"}
+        </button>
+
+        <button class="delete" onclick="deleteProduct('${p.id}')">
+          Delete
+        </button>
+      </div>
+    `;
+  });
+}
+
+// Stats
+function showStats() {
+  let total = products.length;
+
+  let totalCarbon = products.reduce((sum, p) => sum + parseFloat(p.carbon), 0);
+
+  let avgEco = products.reduce((sum, p) => sum + p.eco, 0) / total || 0;
+
+  document.getElementById("stats").innerHTML = `
+    <div class="stat-card">📦 <h3>${total}</h3><p>Products</p></div>
+    <div class="stat-card">🌱 <h3>${avgEco.toFixed(1)}</h3><p>Avg Eco</p></div>
+    <div class="stat-card">🌍 <h3>${totalCarbon.toFixed(1)}</h3><p>Carbon</p></div>
+  `;
+}
+
+function showOutfitFootprint() {
+  if (!selectedForOutfit.size) {
+    document.getElementById("outfitSummary").innerHTML = `<div class="stat-card">ℹ️ <h3>Select items</h3><p>Choose checkboxes to calculate outfit footprint</p></div>`;
+    return;
+  }
+
+  const selected = products.filter(p => selectedForOutfit.has(String(p.id)));
+  const totalCarbon = selected.reduce((sum, p) => sum + parseFloat(p.carbon), 0);
+  const avgEco = selected.reduce((sum, p) => sum + p.eco, 0) / selected.length;
+  const itemCategories = [...new Set(selected.map(p => p.category || "Unknown"))].join(', ');
+
+  document.getElementById("outfitSummary").innerHTML = `
+    <div class="stat-card">👕👖 <h3>${selected.length}</h3><p>Outfit items (${itemCategories})</p></div>
+    <div class="stat-card">🌱 <h3>${avgEco.toFixed(1)}</h3><p>Outfit Avg Eco</p></div>
+    <div class="stat-card">🌍 <h3>${totalCarbon.toFixed(1)}</h3><p>Outfit Carbon</p></div>
+  `;
+}
+
+function showEcoChampion() {
+  if (!products.length) {
+    document.getElementById("ecoChampion").innerHTML = `<div class="stat-card">🌀 <h3>No products yet</h3><p>Add items to see a champion</p></div>`;
+    return;
+  }
+  const highestEco = products.reduce((leader, item) => item.eco > leader.eco ? item : leader, products[0]);
+  document.getElementById("ecoChampion").innerHTML = `
+    <div class="stat-card">🌟 <h3>${highestEco.name}</h3><p>Top Eco Score: ${highestEco.eco}</p><p>Category: ${highestEco.category || 'Unknown'}</p></div>
+  `;
+}
+
+// Search
+function searchProduct() {
+  let input = document.getElementById("search").value.toLowerCase();
+
+  let filtered = products.filter(p =>
+    p.name.toLowerCase().includes(input)
+  );
+
+  displayProducts(filtered);
+}
+
+// Delete
+function deleteProduct(productId) {
+  const index = products.findIndex(p => String(p.id) === String(productId));
+  if (index === -1) return;
+  const removed = products.splice(index, 1)[0];
+  if (removed && removed.id) selectedForOutfit.delete(String(removed.id));
+  localStorage.setItem("products", JSON.stringify(products));
+  displayProducts();
+  showStats();
+  showOutfitFootprint();
+}
+
+// Favorite
+function toggleFavorite(productId) {
+  const product = products.find(p => String(p.id) === String(productId));
+  if (!product) return;
+  product.fav = !product.fav;
+  localStorage.setItem("products", JSON.stringify(products));
+  displayProducts();
+}
+
+// Dark Mode
+function toggleDarkMode() {
+  document.body.classList.toggle("dark");
+}
+
+// Init
+displayProducts();
+showStats();
+showOutfitFootprint();
+showEcoChampion();
+</script>
+
+</body>
+</html>
